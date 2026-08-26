@@ -16,7 +16,6 @@ func TestLifecycle(t *testing.T) {
 	key := []byte("language")
 	val := []byte("go")
 
-	// 1. Test Set
 	t.Run("Set", func(t *testing.T) {
 		updated, err := kv.Set(key, val)
 		if err != nil {
@@ -27,7 +26,6 @@ func TestLifecycle(t *testing.T) {
 		}
 	})
 
-	// 2. Test Get
 	t.Run("Get", func(t *testing.T) {
 		got, ok, _ := kv.Get(key)
 		if !ok || !bytes.Equal(got, val) {
@@ -35,7 +33,6 @@ func TestLifecycle(t *testing.T) {
 		}
 	})
 
-	// 3. Test Update
 	t.Run("Update", func(t *testing.T) {
 		newVal := []byte("golang")
 		updated, _ := kv.Set(key, newVal)
@@ -48,8 +45,6 @@ func TestLifecycle(t *testing.T) {
 			t.Errorf("expected updated value %s, got %s", newVal, got)
 		}
 	})
-
-	// 4. Test Delete
 	t.Run("Delete", func(t *testing.T) {
 		deleted, _ := kv.Del(key)
 		if !deleted {
