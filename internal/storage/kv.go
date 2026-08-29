@@ -11,6 +11,9 @@ type KV struct {
 }
 
 func (kv *KV) Open() error {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
 	if err := kv.log.Open(); err != nil {
 		return err
 	}
@@ -25,18 +28,26 @@ func (kv *KV) Open() error {
 		if err != nil {
 			return err
 		}
-
 		if eof {
 			break
 		}
 
-		kv.mem[string(ent.key)] = ent.val
+		if ent.deleted {
+			delete(kv.mem, string(ent.key))
+		} else {
+			kv.mem[string(ent.key)] = ent.val
+		}
 	}
 
 	return nil
 }
 
-func (kv *KV) Close() error { return nil }
+func (kv *KV) Close() error {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
+	return kv.log.Close()
+}
 
 func (kv *KV) Get(key []byte) (val []byte, ok bool, err error) {
 	kv.mu.RLock()
@@ -56,6 +67,16 @@ func (kv *KV) Set(key []byte, val []byte) (updated bool, err error) {
 
 	_, updated = kv.mem[strKey]
 
+	ent := Entry{
+		key:     key,
+		val:     val,
+		deleted: false,
+	}
+
+	if err := kv.log.Write(&ent); err != nil {
+		return false, err
+	}
+
 	kv.mem[strKey] = val
 
 	return updated, nil
@@ -68,6 +89,16 @@ func (kv *KV) Del(key []byte) (deleted bool, err error) {
 	defer kv.mu.Unlock()
 
 	_, deleted = kv.mem[strKey]
+
+	ent := Entry{
+		key:     key,
+		val:     nil,
+		deleted: true,
+	}
+
+	if err := kv.log.Write(&ent); err != nil {
+		return false, err
+	}
 
 	delete(kv.mem, strKey)
 

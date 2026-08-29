@@ -3,15 +3,35 @@ package storage
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"sync"
 	"testing"
 )
 
-// TestLifecycle handles the full CRUD cycle using subtests
+func logTest(t *testing.T) *KV {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	kv := &KV{
+		log: Log{
+			FileName: filepath.Join(dir, "test.log"),
+		},
+	}
+
+	if err := kv.Open(); err != nil {
+		t.Fatalf("failed to open KV: %v", err)
+	}
+
+	t.Cleanup(func() {
+		kv.Close()
+	})
+
+	return kv
+}
+
 func TestLifecycle(t *testing.T) {
-	kv := &KV{}
-	kv.Open()
-	defer kv.Close()
+	kv := logTest(t)
 
 	key := []byte("language")
 	val := []byte("go")
@@ -58,10 +78,8 @@ func TestLifecycle(t *testing.T) {
 	})
 }
 
-// TestTableDriven tests multiple cases using a table-driven approach
 func TestTableDriven(t *testing.T) {
-	kv := &KV{}
-	kv.Open()
+	kv := logTest(t)
 
 	cases := []struct {
 		name  string
@@ -86,10 +104,8 @@ func TestTableDriven(t *testing.T) {
 	}
 }
 
-// TestConcurrency runs multiple goroutines to check for race conditions
 func TestConcurrency(t *testing.T) {
-	kv := &KV{}
-	kv.Open()
+	kv := logTest(t)
 
 	var wg sync.WaitGroup
 	workers := 50
@@ -113,4 +129,100 @@ func TestConcurrency(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestPersistence(t *testing.T) {
+	dir := t.TempDir()
+	fileName := filepath.Join(dir, "test.log")
+
+	kv := &KV{
+		log: Log{
+			FileName: fileName,
+		},
+	}
+
+	if err := kv.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := kv.Set([]byte("language"), []byte("go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = kv.Set([]byte("language"), []byte("php"))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kv.Close()
+
+	kv2 := &KV{
+		log: Log{
+			FileName: fileName,
+		},
+	}
+
+	if err := kv2.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer kv2.Close()
+
+	got, ok, err := kv2.Get([]byte("language"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !ok {
+		t.Fatal("expected key to exist after reopening")
+	}
+
+	if !bytes.Equal(got, []byte("php")) {
+		t.Errorf("expected php, got %s", got)
+	}
+}
+
+func TestDeletePersistence(t *testing.T) {
+	dir := t.TempDir()
+	fileName := filepath.Join(dir, "test.log")
+
+	kv := &KV{
+		log: Log{
+			FileName: fileName,
+		},
+	}
+
+	if err := kv.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := kv.Set([]byte("language"), []byte("go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = kv.Del([]byte("language"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kv.Close()
+
+	kv2 := &KV{
+		log: Log{
+			FileName: fileName,
+		},
+	}
+
+	if err := kv2.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer kv2.Close()
+
+	_, ok, _ := kv2.Get([]byte("language"))
+
+	if ok {
+		t.Fatal("expected key to remain deleted after reopening")
+	}
 }

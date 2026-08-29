@@ -11,7 +11,7 @@ type Log struct {
 }
 
 func (log *Log) Open() (err error) {
-	log.fp, err = os.OpenFile(log.FileName, os.O_RDWR|os.O_CREATE, 0o644)
+	log.fp, err = os.OpenFile(log.FileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o644)
 	return err
 }
 
@@ -33,4 +33,8 @@ func (log *Log) Read(ent *Entry) (eof bool, err error) {
 	} else {
 		return false, nil
 	}
+}
+
+func (log *Log) SeekToStart() (int64, error) {
+	return log.fp.Seek(0, io.SeekStart)
 }
