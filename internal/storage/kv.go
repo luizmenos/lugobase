@@ -1,6 +1,8 @@
 package storage
 
-import "sync"
+import (
+	"sync"
+)
 
 type KV struct {
 	log Log
@@ -9,7 +11,28 @@ type KV struct {
 }
 
 func (kv *KV) Open() error {
-	kv.mem = map[string][]byte{} // empty
+	if err := kv.log.Open(); err != nil {
+		return err
+	}
+
+	kv.mem = map[string][]byte{}
+
+	for {
+		var ent Entry
+
+		eof, err := kv.log.Read(&ent)
+
+		if err != nil {
+			return err
+		}
+
+		if eof {
+			break
+		}
+
+		kv.mem[string(ent.key)] = ent.val
+	}
+
 	return nil
 }
 
@@ -19,14 +42,14 @@ func (kv *KV) Get(key []byte) (val []byte, ok bool, err error) {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
 
-	strKey := kv.getKey(key)
+	strKey := string(key)
 	val, ok = kv.mem[strKey]
 
 	return
 }
 
 func (kv *KV) Set(key []byte, val []byte) (updated bool, err error) {
-	strKey := kv.getKey(key)
+	strKey := string(key)
 
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
@@ -39,7 +62,7 @@ func (kv *KV) Set(key []byte, val []byte) (updated bool, err error) {
 }
 
 func (kv *KV) Del(key []byte) (deleted bool, err error) {
-	strKey := kv.getKey(key)
+	strKey := string(key)
 
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
@@ -49,8 +72,4 @@ func (kv *KV) Del(key []byte) (deleted bool, err error) {
 	delete(kv.mem, strKey)
 
 	return deleted, nil
-}
-
-func (kv *KV) getKey(key []byte) (strKey string) {
-	return string(key)
 }
