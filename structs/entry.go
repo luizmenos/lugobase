@@ -1,6 +1,9 @@
 package structs
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"io"
+)
 
 type Entry struct {
 	key []byte
@@ -18,4 +21,28 @@ func (ent *Entry) Encode() []byte {
 	copy(buf[8:], ent.key)
 	copy(buf[8+len(ent.key):], ent.val)
 	return buf
+}
+
+func (ent *Entry) Decode(r io.Reader) error {
+	header := make([]byte, 8)
+
+	if _, err := io.ReadFull(r, header); err != nil {
+		return err
+	}
+
+	keyLen := binary.LittleEndian.Uint32(header[0:4])
+	valLen := binary.LittleEndian.Uint32(header[4:8])
+
+	ent.key = make([]byte, keyLen)
+	ent.val = make([]byte, valLen)
+
+	if _, err := io.ReadFull(r, ent.key); err != nil {
+		return err
+	}
+
+	if _, err := io.ReadFull(r, ent.val); err != nil {
+		return err
+	}
+
+	return nil
 }
