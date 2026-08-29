@@ -1,4 +1,4 @@
-package structs
+package storage
 
 import (
 	"encoding/binary"
@@ -6,8 +6,9 @@ import (
 )
 
 type Entry struct {
-	key []byte
-	val []byte
+	key     []byte
+	val     []byte
+	deleted bool
 }
 
 func (ent *Entry) Encode() []byte {

@@ -1,8 +1,9 @@
-package structs
+package storage
 
 import "sync"
 
 type KV struct {
+	log Log
 	mem map[string][]byte
 	mu  sync.RWMutex
 }
